@@ -7,6 +7,7 @@ using System.Net;
 using System.Net.NetworkInformation;
 using System.Text;
 using System.Threading.Tasks;
+using static System.Net.Mime.MediaTypeNames;
 
 namespace Universal_Updater
 {
@@ -20,7 +21,10 @@ namespace Universal_Updater
         static readonly string[] featurePackages = { "MS_RCS_FEATURE_PACK.MainOS.cbsr", "ms_projecta.mainos" };
         static readonly string[] packageExtension = { ".spkg", ".cbs_", ".cab" };
         static int packagePosition = 0;
+        static Process downloadProcess;
         static Uri downloadFile;
+        static string localPath, localFile;
+        static long fileSize;
 
         public static bool OnlineUpdate(string updateBuild)
         {
@@ -103,25 +107,75 @@ namespace Universal_Updater
         public static async Task DownloadUpdate(string update)
         {
             WebClient client = new WebClient();
-            Process downloadProcess = new Process();
+            int downloadMode = 0;
+
+            downloadProcess = new Process();
             downloadProcess.StartInfo.FileName = @"C:\ProgramData\Universal Updater\wget.exe";
+            localPath = $@"{Environment.CurrentDirectory}\{GetDeviceInfo.SerialNumber[0]}\Packages\{update}";
+
             for (int i = 0; i < filteredPackages.Where(j => !string.IsNullOrWhiteSpace(j)).Count(); i++)
             {
                 downloadFile = new Uri(filteredPackages[i]);
+                localFile = downloadFile.LocalPath.Split("/").Last();
                 Console.WriteLine($@"[{i + 1}/{filteredPackages.Where(j => !string.IsNullOrWhiteSpace(j)).Count()}] {downloadFile.LocalPath.Split("/").Last()}");
                 if (update == "15254.603")
                 {
-                    downloadProcess.StartInfo.Arguments = $@"{downloadFile} --spider";
-                    downloadProcess.StartInfo.RedirectStandardOutput = true;
-                    downloadProcess.StartInfo.RedirectStandardError = true;
-                    downloadProcess.StartInfo.RedirectStandardInput = true;
-                    downloadProcess.Start();
-                    downloadProcess.WaitForExit();
-                    var logOutput = (await downloadProcess.StandardError.ReadToEndAsync()).Split("\n");
-                    var fileSize = Convert.ToInt64(logOutput.Where(j => j.Contains("Length:", StringComparison.OrdinalIgnoreCase)).ToArray()[0].Split(' ')[1]);
+                    // Get File Size
+                    int downloadCount = 5;
                     do
                     {
-                        downloadProcess.StartInfo.Arguments = $@"-q -c -P ""{Environment.CurrentDirectory}\{GetDeviceInfo.SerialNumber[0]}\Packages"" {downloadFile} --no-check-certificate --show-progress";
+                        await DownloadUpdateGetLength();
+                        if (fileSize > 0)
+                            break;
+
+                        if (--downloadCount > 0)
+                        {
+                            Console.WriteLine(">>> [Error] Download Fail. Wait 10s and do again.");
+                            await Task.Delay(10000);
+                            //System.Threading.Thread.Sleep(10000);
+                            continue;
+                        }
+                        else
+                        {
+                            Console.WriteLine(">>> [Error] Download Fail. PROGRAMM STOPPED.");
+                            Console.ReadKey();
+                            Environment.Exit(-1);
+                        }
+                    } while (true);
+
+                    // Clear download flag
+                    if (downloadMode == -1 || downloadMode == 1)
+                        downloadMode = 0;
+
+                    // Use Local Save
+                    FileInfo fileInfo = new FileInfo($@"{localPath}\{localFile}");
+                    if(fileInfo.Exists && fileSize == fileInfo.Length)
+                    {
+                        if (downloadMode == 0)
+                        {                            
+                            do
+                            {
+                                Console.WriteLine($@">>> [Found] File allready exists. Download again? y - Yes. n - No. a - Download all. s - Skip all exists.");
+                                ConsoleKeyInfo key = Console.ReadKey(true);
+                                switch (key.KeyChar) {
+                                    case 'y': downloadMode = 1; break;
+                                    case 'n': downloadMode = -1; break;
+                                    case 'a': downloadMode = 2; break;
+                                    case 's': downloadMode = -2; break;
+                                }
+
+                            } while (downloadMode == 0);
+                        }
+                    }
+
+                    if(downloadMode < 0 && fileInfo.Exists && fileSize == fileInfo.Length)
+                        continue;
+
+                    // Download
+                    do
+                    {
+                        downloadProcess.StartInfo.Arguments = $@"-q -c -P ""{localPath}"" {downloadFile} --no-check-certificate --show-progress";
+                        //downloadProcess.StartInfo.Arguments = $@"-q -c -P ""{Environment.CurrentDirectory}\{GetDeviceInfo.SerialNumber[0]}\Packages"" {downloadFile} --no-check-certificate --show-progress";
                         downloadProcess.StartInfo.RedirectStandardOutput = false;
                         downloadProcess.StartInfo.RedirectStandardError = false;
                         downloadProcess.StartInfo.RedirectStandardInput = false;
@@ -129,7 +183,7 @@ namespace Universal_Updater
                         Console.Title = "Universal Updater.exe";
                         downloadProcess.WaitForExit();
                     }
-                    while (fileSize != new FileInfo($@"{Environment.CurrentDirectory}\{GetDeviceInfo.SerialNumber[0]}\Packages\{downloadFile.LocalPath.Split("/").Last()}").Length);
+                    while (fileSize != new FileInfo($@"{localPath}\{localFile}").Length);
                 }
                 else
                 {
@@ -139,12 +193,31 @@ namespace Universal_Updater
                     do
                     {
                         client.DownloadProgressChanged += DownloadProgressChanged;
-                        await client.DownloadFileTaskAsync(downloadFile, $@"{Environment.CurrentDirectory}\{GetDeviceInfo.SerialNumber[0]}\Packages\{downloadFile.LocalPath.Split("/").Last()}");
+                        await client.DownloadFileTaskAsync(downloadFile, $@"{localPath}\{localFile}");
                         Console.Title = "Universal Updater.exe";
                     }
-                    while (fileSize != new FileInfo($@"{Environment.CurrentDirectory}\{GetDeviceInfo.SerialNumber[0]}\Packages\{downloadFile.LocalPath.Split("/").Last()}").Length);
+                    while (fileSize != new FileInfo($@"{localPath}\{localFile}").Length);
                 }
             }
+        }
+
+        private static async Task DownloadUpdateGetLength()
+        {
+            downloadProcess.StartInfo.Arguments = $@"{downloadFile} --spider";
+            downloadProcess.StartInfo.RedirectStandardOutput = true;
+            downloadProcess.StartInfo.RedirectStandardError = true;
+            downloadProcess.StartInfo.RedirectStandardInput = true;
+            downloadProcess.Start();
+            downloadProcess.WaitForExit();
+            var logOutput = (await downloadProcess.StandardError.ReadToEndAsync()).Split("\n");
+            var logLength = logOutput.Where(j => j.Contains("Length:", StringComparison.OrdinalIgnoreCase));
+
+            if (logLength.Count() != 0)
+                fileSize = Convert.ToInt64(logLength.ToArray()[0].Split(' ')[1]);
+            else
+                fileSize = 0;
+
+            return ;
         }
 
         private static void DownloadProgressChanged(object sender, DownloadProgressChangedEventArgs downloadProgressChangedEventArgs)

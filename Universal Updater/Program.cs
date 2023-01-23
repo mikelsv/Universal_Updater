@@ -161,7 +161,7 @@ namespace Universal_Updater
                 await DownloadPackages.DownloadUpdate(updateStructure[CheckForUpdates.Choice - 1, Convert.ToInt32(Program.selectedUpdate.KeyChar.ToString()) - 1]);
             }
             Console.Write("\n\nPUSHING PACKAGES");
-            PushPackages.StartUpdate();
+            PushPackages.StartUpdate(updateStructure[CheckForUpdates.Choice - 1, Convert.ToInt32(Program.selectedUpdate.KeyChar.ToString()) - 1]);
             await Task.Delay(15000);
             if (!PushPackages.updateProcess.HasExited)
             {

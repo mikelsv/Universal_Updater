@@ -62,7 +62,7 @@ namespace Universal_Updater
             }
             string[] res = File.ReadAllLines(@"C:\ProgramData\Universal Updater\OEMInput.xml").Where(i => i.Contains("<Resolution>")).ToArray();
             deviceInfo[deviceInfo.Length - 1] = "Resolution: " + res[0].Split('>')[1].Split('<')[0];
-            if (Directory.Exists($@"{Environment.CurrentDirectory}\{SerialNumber[0]}"))
+            /*if (Directory.Exists($@"{Environment.CurrentDirectory}\{SerialNumber[0]}"))
             {
                 Directory.Delete($@"{Environment.CurrentDirectory}\{SerialNumber[0]}", true);
                 Directory.CreateDirectory($@"{Environment.CurrentDirectory}\{SerialNumber[0]}\Packages");
@@ -70,8 +70,9 @@ namespace Universal_Updater
             else
             {
                 Directory.CreateDirectory($@"{Environment.CurrentDirectory}\{SerialNumber[0]}\Packages");
-            }
-            File.Copy(@"C:\ProgramData\Universal Updater\DeviceLog.cab", $@"{Environment.CurrentDirectory}\{SerialNumber[0]}\DeviceLog.cab");
+            }*/
+            Directory.CreateDirectory($@"{Environment.CurrentDirectory}\{SerialNumber[0]}\Packages");
+            File.Copy(@"C:\ProgramData\Universal Updater\DeviceLog.cab", $@"{Environment.CurrentDirectory}\{SerialNumber[0]}\DeviceLog.cab", true);
             for (int i = 0; i < deviceInfo.Length; i++)
             {
                 var splitDetails = deviceInfo[i].Split(':');

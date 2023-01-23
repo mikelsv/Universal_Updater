@@ -11,11 +11,11 @@ namespace Universal_Updater
     {
         public static Process updateProcess;
 
-        public static void StartUpdate()
+        public static void StartUpdate(string updateBuild)
         {
             updateProcess = new Process();
             updateProcess.StartInfo.FileName = $@"C:\ProgramData\Universal Updater\iutool.exe";
-            updateProcess.StartInfo.Arguments = $@"-V -p ""{Environment.CurrentDirectory}\{GetDeviceInfo.SerialNumber[0]}\Packages""";
+            updateProcess.StartInfo.Arguments = $@"-V -p ""{Environment.CurrentDirectory}\{GetDeviceInfo.SerialNumber[0]}\Packages\{updateBuild}""";
             updateProcess.Start();
         }
     }
